@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">JELAS</string>
+    <string name="rem_daily_title">Catat belanja anda?</string>
+    <string name="rem_daily_body">Seminit sekarang, wang anda kekal jelas.</string>
+    <string name="rem_weekly_title">Semakan mingguan</string>
+    <string name="rem_weekly_body">Lihat ke mana wang anda pergi minggu ini.</string>
+    <string name="rem_monthly_title">Bulan baharu, lembaran bersih</string>
+    <string name="rem_monthly_body">Semak bajet dan sasaran bulan ini.</string>
+</resources>

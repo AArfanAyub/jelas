@@ -1,0 +1,16 @@
+# Only JELAS belongs in this repo
+app-solat/
+.workbuddy-ai/
+
+# Logs / temp
+*.log
+test-report.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp

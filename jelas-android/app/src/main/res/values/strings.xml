@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">JELAS</string>
+    <string name="rem_daily_title">Log your spending?</string>
+    <string name="rem_daily_body">A minute now keeps your money clear.</string>
+    <string name="rem_weekly_title">Weekly review</string>
+    <string name="rem_weekly_body">See where your money went this week.</string>
+    <string name="rem_monthly_title">New month, clean slate</string>
+    <string name="rem_monthly_body">Check your budget and goals for the month.</string>
+</resources>

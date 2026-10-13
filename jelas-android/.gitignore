@@ -1,0 +1,14 @@
+# JELAS — Android build
+# Signing material must never be published.
+*.keystore
+*.jks
+keystore.pass
+*.pem
+
+# Build output / intermediates
+build/
+gen/
+dist/
+
+# Local tooling
+*.log

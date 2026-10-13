@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">JELAS</string>
+    <string name="rem_daily_title">记一笔吗？</string>
+    <string name="rem_daily_body">现在花一分钟，钱就清清楚楚。</string>
+    <string name="rem_weekly_title">每周回顾</string>
+    <string name="rem_weekly_body">看看本周的钱花到哪里了。</string>
+    <string name="rem_monthly_title">新的一月，重新开始</string>
+    <string name="rem_monthly_body">检查本月预算和目标。</string>
+</resources>

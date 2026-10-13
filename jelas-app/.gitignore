@@ -1,0 +1,13 @@
+# JELAS — web app
+# Logs / temp
+*.log
+test-report.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp

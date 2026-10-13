@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="JELAS">
+  <title>JELAS</title>
+  <defs>
+    <linearGradient id="jg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#26282D"/>
+      <stop offset="1" stop-color="#101114"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#jg)"/>
+  <line x1="17" y1="32" x2="38.4" y2="32" stroke="#F5F3EE" stroke-width="3.97" stroke-linecap="round"/>
+  <circle cx="46.4" cy="32" r="3.97" fill="#2FA08C"/>
+</svg>
