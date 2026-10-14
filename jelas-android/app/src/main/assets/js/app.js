@@ -58,11 +58,24 @@
   function fmtDate(iso, style) { return window.I18N.fmtDate(iso, style); }
   var DEFAULT_CFG = {
     currency: 'MYR', method: '5020', theme: 'auto', locale: 'en', reduceMotion: false,
-    haptics: true, privacyBlur: false, screenshotBlock: true, autoLock: 15, bio: false, receiptScan: false
+    haptics: true, privacyBlur: false, screenshotBlock: true, autoLock: 15, bio: false, receiptScan: false,
+    accountScope: 'all'
   };
   function cfg() {
     var st = S.get();
     return (st && st.settings) ? st.settings : DEFAULT_CFG;
+  }
+  /* Which account the sections are focused on: null = all accounts. */
+  function scopeId() {
+    var s = S.get().settings;
+    return (s && s.accountScope && s.accountScope !== 'all') ? s.accountScope : null;
+  }
+  /* Reset the scope when its account disappears or gets archived. */
+  function ensureScope() {
+    var s = S.get().settings;
+    if (!s || !s.accountScope || s.accountScope === 'all') return;
+    var a = S.get().accounts.filter(function (x) { return x.id === s.accountScope && !x.archived; })[0];
+    if (!a) { s.accountScope = 'all'; S.save(); }
   }
 
   var toastTimer = null;
@@ -266,7 +279,10 @@
 
   function setTab(name) {
     if (name === 'add') {
+      var sc0 = scopeId();
       if (!addState) newAddState('expense');
+      // entering Add follows the account you picked on Today
+      else if (sc0 && addState.accountId !== sc0 && tab !== 'add') addState.accountId = sc0;
     }
     tab = name;
     ['today', 'flow', 'add', 'report', 'me'].forEach(function (n) {
@@ -340,11 +356,15 @@
   function newAddState(type) {
     var accts = S.get().accounts.filter(function (a) { return !a.archived; });
     var last = S.get().transactions[S.get().transactions.length - 1];
+    var sc = scopeId();
+    var defAcct = (last && last.accountId && accts.some(function (a) { return a.id === last.accountId; })) ? last.accountId
+      : (sc && accts.some(function (a) { return a.id === sc; }) ? sc
+        : (accts[0] ? accts[0].id : null));
     addState = {
       type: type || 'expense',
       amount: '',
       categoryId: null,
-      accountId: (last && last.accountId && accts.some(function (a) { return a.id === last.accountId; })) ? last.accountId : (accts[0] ? accts[0].id : null),
+      accountId: defAcct,
       toAccountId: null,
       date: S.todayISO(),
       note: '',
@@ -377,6 +397,7 @@
 
   /* ================= render dispatcher ================= */
   function render() {
+    ensureScope();
     renderChrome();
     if (tab === 'today') renderToday();
     else if (tab === 'flow') renderFlow();
@@ -387,12 +408,25 @@
   }
 
   /* ================= TODAY ================= */
+  /* Account switcher chips: All + every active account. Hidden below 2 accounts. */
+  function acctChips() {
+    var accts = S.get().accounts.filter(function (a) { return !a.archived; });
+    if (accts.length < 2) return '';
+    var sc = scopeId();
+    return '<div class="acctchips">' +
+      '<button class="acctchip' + (sc ? '' : ' on') + '" data-act="scope" data-a="all">' + esc(t('scope.all')) + '</button>' +
+      accts.map(function (a) {
+        return '<button class="acctchip' + (sc === a.id ? ' on' : '') + '" data-act="scope" data-a="' + a.id + '">' + esc(a.name) + '</button>';
+      }).join('') + '</div>';
+  }
+
   function renderToday() {
     var now = new Date();
+    var sc = scopeId();
     var sts = S.safeToSpend(now);
-    var ms = S.monthStats(now);
-    var ws = S.weekStats(now);
-    var ds = S.dayStats(now);
+    var ms = S.monthStats(now, sc);
+    var ws = S.weekStats(now, sc);
+    var ds = S.dayStats(now, sc);
     var streak = S.loggingStreak();
     var cats = S.categoryTotals(S.startOfMonth(now), S.endOfMonth(now));
     var budgeted = S.totalBudgeted();
@@ -410,11 +444,23 @@
 
     var html = '';
 
-    // hero — the one number that matters
+    // hero — the one number that matters: total balance, with the account switcher
     var lim = S.monthLimitStatus(now);
     var score = moneyScore(now);
     var overLimit = (sts.limit > 0 && sts.remaining < 0) || (!sts.hasBudget && sts.value <= 0);
+    var acctsActive = S.get().accounts.filter(function (a) { return !a.archived; });
+    var scAcct = sc ? (acctsActive.filter(function (a) { return a.id === sc; })[0] || null) : null;
+    var totalBal = sc ? S.accountBalance(sc)
+      : acctsActive.reduce(function (s2, a) { return s2 + S.accountBalance(a.id); }, 0);
     html += '<div class="card hero hero-grad rise">' +
+      '<div class="row between" style="align-items:flex-start">' +
+        '<div class="label">' + esc(t('today.total_balance')) + '</div>' +
+        '<button class="iconbtn" data-act="scope-info" aria-label="' + esc(t('scope.info.title')) + '" style="width:32px;height:32px;color:rgba(243,241,236,.75)">' + ic('info') + '</button>' +
+      '</div>' +
+      '<div class="big count-me" data-count="' + totalBal + '">' + money(totalBal) + '</div>' +
+      '<div class="hint">' + esc(scAcct ? t('scope.one', { name: scAcct.name }) : t('scope.all')) + '</div>' +
+      acctChips() +
+      '<div class="hr" style="margin:12px 0"></div>' +
       '<div class="row between" style="align-items:flex-start">' +
         '<div class="label">' + esc(t('today.safe')) + '</div>' +
         '<span class="scorechip ' + score.tone + '">' + esc(score.label) + ' · ' + score.value + '</span>' +
@@ -470,25 +516,29 @@
     '</button>';
 
     // bills due soon
-    if (S.activeBills().length) {
-      var soon = S.billsDueWithin(7, now).filter(function (x) { return !S.isBillPaid(x.bill, now); });
+    var billsPool = S.activeBills().filter(function (b) { return !sc || b.accountId === sc; });
+    if (billsPool.length) {
+      var soon = S.billsDueWithin(7, now).filter(function (x) {
+        return !S.isBillPaid(x.bill, now) && (!sc || x.bill.accountId === sc);
+      });
       if (!soon.length) {
-        // nothing in the next week — surface the next one that is actually unpaid
-        var upcoming = S.activeBills().map(function (b) {
+        // nothing in the next week — surface the next few that are actually unpaid
+        var upcoming = billsPool.map(function (b) {
           var dd = S.nextDueDate(b, now);
           return { bill: b, due: dd, daysUntil: Math.round((S.startOfDay(dd) - S.startOfDay(now)) / 86400000) };
         }).filter(function (x) { return !S.isBillPaid(x.bill, now); })
           .sort(function (a, b) { return a.due - b.due; });
-        soon = upcoming.slice(0, 1);
+        soon = upcoming.slice(0, 3);
       }
       var allPaid = !soon.length;
+      var monthlyBills = billsPool.reduce(function (s2, b) { return s2 + S.monthlyEquivalent(b); }, 0);
       html += '<div class="card tap rise" data-act="open" data-ov="bills">' +
         '<div class="row between" style="margin-bottom:' + (allPaid ? '0' : '12px') + '">' +
           '<span class="small muted" style="letter-spacing:.12em;text-transform:uppercase;font-weight:650">' + esc(t('bill.title')) + '</span>' +
-          '<span class="small muted num">' + money(S.monthlyBillsTotal()) + ' / ' + esc(t('common.month')).toLowerCase() + '</span>' +
+          '<span class="small muted num">' + money(monthlyBills) + ' / ' + esc(t('common.month')).toLowerCase() + '</span>' +
         '</div>' +
         (allPaid
-          ? '<div class="small v-in">' + esc(t('bill.paid_this_month')) + ' ✓</div>'
+          ? '<div class="small v-in">' + esc(t('bill.all_paid')) + ' ✓</div>'
           : soon.slice(0, 3).map(function (x) {
               var dlabel = x.daysUntil === 0 ? t('bill.due_today')
                 : (x.daysUntil === 1 ? t('bill.due_tomorrow') : t('bill.due_in', { n: x.daysUntil }));
@@ -630,10 +680,11 @@
   /* ================= FLOW ================= */
   function renderFlow() {
     var now = new Date();
+    var scF = scopeId();
     var from = S.startOfMonth(flowAnchor);
     var to = S.endOfMonth(flowAnchor);
-    var ms = S.stats(from, to);
-    var all = S.txsBetween(from, to);
+    var ms = S.stats(from, to, scF);
+    var all = S.txsBetween(from, to).filter(function (tx) { return !scF || tx.accountId === scF || tx.toAccountId === scF; });
     var q = flowQuery.trim().toLowerCase();
     var list = all.filter(function (tx) {
       if (flowFilter === 'in' && tx.type !== 'income') return false;
@@ -651,12 +702,14 @@
     var vals = {};
     S.get().transactions.forEach(function (tx) {
       if (tx.type !== 'expense') return;
+      if (scF && tx.accountId !== scF && tx.toAccountId !== scF) return;
       if (tx.date.indexOf(S.ymd(flowAnchor).slice(0, 7)) === 0) {
         vals[tx.date] = (vals[tx.date] || 0) + tx.amount;
       }
     });
 
     var html = '';
+    html += acctChips();
     html += '<div class="seg">' +
       [['all', 'common.all'], ['in', 'flow.in'], ['out', 'flow.out'], ['transfer', 'add.transfer']].map(function (f) {
         return '<button class="' + (flowFilter === f[0] ? 'active' : '') + '" data-act="flow-filter" data-f="' + f[0] + '">' + esc(t(f[1])) + '</button>';
@@ -923,9 +976,11 @@
   function renderReport() {
     var R = reportRangeDates();
     var from = R.from, to = R.to, label = R.label;
-    var st = S.stats(from, to);
-    var cats = S.categoryTotals(from, to);
-    var tx = S.txsBetween(from, to);
+    var scR = scopeId();
+    var scRAcct = scR ? (S.get().accounts.filter(function (a) { return a.id === scR; })[0] || null) : null;
+    var st = S.stats(from, to, scR);
+    var cats = S.categoryTotals(from, to, scR);
+    var tx = S.txsBetween(from, to).filter(function (t) { return !scR || t.accountId === scR || t.toAccountId === scR; });
 
     // previous period
     var prevFrom, prevTo;
@@ -935,11 +990,12 @@
       prevFrom = S.startOfMonth(new Date(reportAnchor.getFullYear(), reportAnchor.getMonth() - 1, 1));
       prevTo = S.endOfMonth(prevFrom);
     }
-    var prev = S.stats(prevFrom, prevTo);
+    var prev = S.stats(prevFrom, prevTo, scR);
 
     var score = moneyScore(reportAnchor);
     var html = '';
 
+    html += acctChips();
     html += '<div class="seg">' +
       '<button class="' + (reportRange === 'week' ? 'active' : '') + '" data-act="report-range" data-r="week">' + esc(t('report.week')) + '</button>' +
       '<button class="' + (reportRange === 'month' ? 'active' : '') + '" data-act="report-range" data-r="month">' + esc(t('report.month')) + '</button>' +
@@ -1032,7 +1088,7 @@
     }
     var srcList = acctList(sources, 3), midList = acctList(accounts, 3);
     var uses = cats.slice(0, 4).map(function (c) { return { name: c.name, value: c.total }; });
-    if (srcList.length && midList.length && uses.length) {
+    if (!scR && srcList.length && midList.length && uses.length) {
       html += '<div class="sechead"><span class="dotmark"></span><span class="t">' + esc(t('report.flow_title')) + '</span><span class="line"></span></div>';
       html += '<div class="card rise">' + window.JELAS_CHARTS.moneyFlow(srcList, midList, uses) + '</div>';
     }
@@ -1104,11 +1160,12 @@
     html += sechead(t('report.net_worth'));
     var nwSeries = S.netWorthSeries(12);
     html += '<div class="card rise">' +
+      (scR ? '<div class="small muted" style="margin-bottom:8px">' + esc(t('scope.one', { name: scRAcct ? scRAcct.name : '' })) + '</div>' : '') +
       '<div class="row between"><span class="small muted">' + esc(t('report.net_worth')) + '</span>' +
-      '<span class="num" style="font-weight:680;font-size:18px">' + money(S.netWorth()) + '</span></div>' +
+      '<span class="num" style="font-weight:680;font-size:18px">' + money(S.netWorth(scR)) + '</span></div>' +
       '<div class="hr"></div>' +
-      '<div class="row between small"><span class="muted">' + esc(t('me.assets')) + '</span><span class="num v-in">' + money(S.totalAssets()) + '</span></div>' +
-      '<div class="row between small" style="margin-top:6px"><span class="muted">' + esc(t('me.liabilities')) + '</span><span class="num v-out">' + money(S.totalLiabilities()) + '</span></div>' +
+      '<div class="row between small"><span class="muted">' + esc(t('me.assets')) + '</span><span class="num v-in">' + money(S.totalAssets(scR)) + '</span></div>' +
+      '<div class="row between small" style="margin-top:6px"><span class="muted">' + esc(t('me.liabilities')) + '</span><span class="num v-out">' + money(S.totalLiabilities(scR)) + '</span></div>' +
       (nwSeries.length >= 2
         ? '<div class="hr"></div>' +
           '<div class="small muted" style="margin-bottom:8px">' + esc(t('nw.title')) + '</div>' +
@@ -1136,13 +1193,16 @@
   /* ================= ME ================= */
   function renderMe() {
     var html = '';
-    var nw = S.netWorth();
+    var scM = scopeId();
+    var scMAcct = scM ? (S.get().accounts.filter(function (a) { return a.id === scM; })[0] || null) : null;
+    var nw = S.netWorth(scM);
 
     html += '<div class="card">' +
       '<div class="label small muted" style="letter-spacing:.14em;text-transform:uppercase;font-weight:600">' + esc(t('me.net_worth')) + '</div>' +
       '<div class="big money" style="font-size:32px;font-weight:640;margin:4px 0 10px">' + money(nw) + '</div>' +
-      '<div class="row between small muted"><span>' + esc(t('me.assets')) + '</span><span class="num v-in">' + money(S.totalAssets()) + '</span></div>' +
-      '<div class="row between small muted" style="margin-top:4px"><span>' + esc(t('me.liabilities')) + '</span><span class="num v-out">' + money(S.totalLiabilities()) + '</span></div>' +
+      (scM ? '<div class="tiny muted" style="margin-bottom:8px">' + esc(t('scope.one', { name: scMAcct ? scMAcct.name : '' })) + '</div>' : '') +
+      '<div class="row between small muted"><span>' + esc(t('me.assets')) + '</span><span class="num v-in">' + money(S.totalAssets(scM)) + '</span></div>' +
+      '<div class="row between small muted" style="margin-top:4px"><span>' + esc(t('me.liabilities')) + '</span><span class="num v-out">' + money(S.totalLiabilities(scM)) + '</span></div>' +
     '</div>';
 
     html += '<div class="seg">' +
@@ -1536,11 +1596,23 @@
       html += '<div class="card stagger">' + bills.map(function (b) {
         var paid = S.isBillPaid(b, now);
         var c = S.category(b.categoryId);
+        var dueTxt, freqTxt = '';
+        if (b.frequency === 'weekly') {
+          var wd = Math.max(0, Math.min(6, Math.floor(Number(b.dueDay)) || 0));
+          dueTxt = esc(t('bill.due_fmt_weekly', { day: t('bill.weekday_' + wd) }));
+        } else if (b.frequency === 'yearly') {
+          var bm = Math.max(1, Math.min(12, Math.floor(Number(b.dueMonth)) || 1));
+          dueTxt = esc(t('bill.due_fmt_yearly', { day: b.dueDay, month: t('bill.month_' + bm) })) + ' · ' + esc(t('bill.freq_yearly'));
+        } else {
+          dueTxt = esc(t('bill.due_day')) + ' ' + b.dueDay + ' · ' + esc(t('bill.freq_monthly'));
+        }
+        var paidTxt = b.frequency === 'weekly' ? t('bill.paid_this_week')
+          : (b.frequency === 'yearly' ? t('bill.paid_this_year') : t('bill.paid_this_month'));
         return '<div class="billrow" role="button" tabindex="0" data-act="bill-edit" data-id="' + b.id + '">' +
           '<span class="ic-wrap" style="width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:' + (c ? esc(c.color) + '1f' : 'var(--paper)') + ';color:' + (c ? esc(c.color) : 'var(--muted)') + '">' + ic(b.icon || 'repeat') + '</span>' +
           '<div class="bmain"><div class="bt">' + esc(b.name) + '</div>' +
-          '<div class="bs">' + esc(t('bill.due_day')) + ' ' + b.dueDay + ' · ' + esc(t('bill.freq_' + b.frequency)) +
-          ' <span class="duepill ' + (paid ? 'paid' : 'ok') + '">' + esc(paid ? t('bill.paid_this_month') : dueLabel({ daysUntil: Math.round((S.nextDueDate(b, now) - S.startOfDay(now)) / 86400000) })) + '</span></div></div>' +
+          '<div class="bs">' + dueTxt + freqTxt +
+          ' <span class="duepill ' + (paid ? 'paid' : 'ok') + '">' + esc(paid ? paidTxt : dueLabel({ daysUntil: Math.round((S.nextDueDate(b, now) - S.startOfDay(now)) / 86400000) })) + '</span></div></div>' +
           '<span class="bamt">' + money(b.amount) + '</span>' +
         '</div>';
       }).join('') + '</div>';
@@ -1554,20 +1626,29 @@
       var b = p && p.id ? S.get().bills.find(function (x) { return x.id === p.id; }) : null;
       var cats = S.get().categories.filter(function (c) { return c.kind !== 'income' && !c.archived; });
       var icons = ['repeat', 'phone', 'rent', 'utilities', 'entertainment', 'health', 'education', 'gift', 'wallet', 'shield'];
+      var freqNow = b ? (b.frequency || 'monthly') : 'monthly';
+      var accts = S.get().accounts.filter(function (a) { return !a.archived; });
+      var billAcct = b && b.accountId ? b.accountId
+        : (scopeId() && accts.some(function (a) { return a.id === scopeId(); }) ? scopeId()
+          : (accts[0] ? accts[0].id : ''));
       return '<div class="card"><div class="small muted">' + esc(t('bill.sub')) + '</div></div>' +
         '<div class="field"><label>' + esc(t('bill.name')) + '</label>' +
         '<input class="input" id="bf2_name" placeholder="' + esc(t('bill.name_ph')) + '" value="' + esc(b ? b.name : '') + '"></div>' +
         '<div class="row2">' +
           '<div class="field"><label>' + esc(t('bill.amount')) + '</label>' +
           '<input type="number" step="0.01" class="input" id="bf2_amt" value="' + (b ? b.amount : '') + '"></div>' +
-          '<div class="field"><label>' + esc(t('bill.due_day')) + '</label>' +
-          '<input type="number" min="1" max="31" class="input" id="bf2_day" value="' + (b ? b.dueDay : 1) + '"></div>' +
+          '<div class="field"><label>' + esc(t('bill.frequency')) + '</label>' +
+          '<select class="select" id="bf2_freq">' +
+          ['monthly', 'weekly', 'yearly'].map(function (f) {
+            return '<option value="' + f + '"' + (freqNow === f ? ' selected' : '') + '>' + esc(t('bill.freq_' + f)) + '</option>';
+          }).join('') + '</select></div>' +
         '</div>' +
-        '<div class="field"><label>' + esc(t('bill.frequency')) + '</label>' +
-        '<select class="select" id="bf2_freq">' +
-        ['monthly', 'weekly', 'yearly'].map(function (f) {
-          return '<option value="' + f + '"' + (b && b.frequency === f ? ' selected' : '') + '>' + esc(t('bill.freq_' + f)) + '</option>';
-        }).join('') + '</select></div>' +
+        '<div class="field"><label id="bf2_duelabel">' + esc(t('bill.due_day')) + '</label><div id="bf2_duebox"></div></div>' +
+        (accts.length
+          ? '<div class="field"><label>' + esc(t('bill.account')) + '</label><select class="select" id="bf2_acct">' +
+            accts.map(function (a) { return '<option value="' + a.id + '"' + (billAcct === a.id ? ' selected' : '') + '>' + esc(a.name) + '</option>'; }).join('') +
+            '</select></div>'
+          : '') +
         '<div class="field"><label>' + esc(t('common.category')) + '</label>' +
         '<select class="select" id="bf2_cat"><option value="">—</option>' +
         cats.map(function (c) {
@@ -1587,13 +1668,47 @@
       var b = p && p.id ? S.get().bills.find(function (x) { return x.id === p.id; }) : null;
       window.__bf2Icon = (b ? b.icon : 'repeat') || 'repeat';
       var box = $('bf2_icons');
-      if (!box) return;
-      box.addEventListener('click', function (e) {
-        var el = e.target.closest('[data-i]');
-        if (!el) return;
-        window.__bf2Icon = el.getAttribute('data-i');
-        Array.prototype.forEach.call(box.children, function (x) { x.classList.toggle('on', x === el); });
-      });
+      if (box) {
+        box.addEventListener('click', function (e) {
+          var el = e.target.closest('[data-i]');
+          if (!el) return;
+          window.__bf2Icon = el.getAttribute('data-i');
+          Array.prototype.forEach.call(box.children, function (x) { x.classList.toggle('on', x === el); });
+        });
+      }
+      // frequency-aware due control — the input shape depends on the cadence
+      var freqSel = $('bf2_freq');
+      var dueBox = $('bf2_duebox');
+      var dueLabel = $('bf2_duelabel');
+      if (!freqSel || !dueBox) return;
+      function renderDueControl() {
+        var f = freqSel.value;
+        if (f === 'weekly') {
+          dueLabel.textContent = t('bill.due_weekday');
+          dueBox.innerHTML = '<select class="select" id="bf2_day">' +
+            [0, 1, 2, 3, 4, 5, 6].map(function (d) {
+              var sel = b && b.frequency === 'weekly' && (Math.max(0, Math.min(6, Math.floor(Number(b.dueDay)) || 0)) === d);
+              return '<option value="' + d + '"' + (sel ? ' selected' : '') + '>' + esc(t('bill.weekday_' + d)) + '</option>';
+            }).join('') + '</select>';
+        } else if (f === 'yearly') {
+          dueLabel.textContent = t('bill.due_month');
+          var curM = b && b.frequency === 'yearly' && b.dueMonth
+            ? Math.max(1, Math.min(12, Math.floor(Number(b.dueMonth))))
+            : (new Date().getMonth() + 1);
+          dueBox.innerHTML = '<div class="row2">' +
+            '<div class="field"><select class="select" id="bf2_month">' +
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(function (m) {
+              return '<option value="' + m + '"' + (curM === m ? ' selected' : '') + '>' + esc(t('bill.month_' + m)) + '</option>';
+            }).join('') + '</select></div>' +
+            '<div class="field"><input type="number" min="1" max="31" class="input" id="bf2_day" value="' + (b ? b.dueDay : 1) + '"></div></div>';
+        } else {
+          dueLabel.textContent = t('bill.due_day');
+          var dv = b ? (b.frequency === 'weekly' ? 1 : b.dueDay) : 1;
+          dueBox.innerHTML = '<input type="number" min="1" max="31" class="input" id="bf2_day" value="' + dv + '">';
+        }
+      }
+      renderDueControl();
+      freqSel.addEventListener('change', renderDueControl);
     }
   };
 
@@ -2609,6 +2724,18 @@
     setTab('add');
   };
 
+  ACTIONS['scope'] = function (el) {
+    var v = el.getAttribute('data-a');
+    S.setSetting('accountScope', v);
+    render();
+    var scA = S.get().accounts.filter(function (a) { return a.id === v; })[0];
+    toast(v === 'all' ? t('scope.all') : t('scope.one', { name: scA ? scA.name : '' }));
+  };
+  ACTIONS['scope-info'] = function () {
+    openSheet('<h3>' + esc(t('scope.info.title')) + '</h3>' +
+      '<div class="small muted" style="margin:10px 0 16px">' + esc(t('scope.info.body')) + '</div>' +
+      '<button class="btn full" data-act="sheet-close">' + esc(t('common.close')) + '</button>');
+  };
   ACTIONS['acct-add'] = function () { openOverlay('account-form'); };
   ACTIONS['acct-edit'] = function (el) { openOverlay('account-form', { id: el.getAttribute('data-id') }); };
   ACTIONS['acct-save'] = function (el) {
@@ -2714,9 +2841,11 @@
       amount: amt,
       dueDay: Number($('bf2_day').value) || 1,
       frequency: $('bf2_freq').value,
+      accountId: $('bf2_acct') ? ($('bf2_acct').value || null) : null,
       categoryId: $('bf2_cat').value || null,
       icon: window.__bf2Icon || 'repeat'
     };
+    if ($('bf2_month')) patch.dueMonth = Number($('bf2_month').value) || 1;
     if (id) S.updateBill(id, patch);
     else S.addBill(patch);
     closeOverlay();
@@ -2731,7 +2860,18 @@
     render();
   };
   ACTIONS['bill-paid'] = function (el) {
-    var tx = S.markBillPaid(el.getAttribute('data-id'));
+    var id = el.getAttribute('data-id');
+    var b = S.get().bills.filter(function (x) { return x.id === id; })[0];
+    if (!b) return;
+    if (!b.accountId && !S.get().accounts.filter(function (a) { return !a.archived; }).length) {
+      toast(t('bill.need_account')); return;
+    }
+    var scP = scopeId();
+    if (scP && b.accountId && b.accountId !== scP) {
+      var pa = S.get().accounts.filter(function (x) { return x.id === b.accountId; })[0];
+      toast(t('bill.other_account', { name: pa ? pa.name : '' }));
+    }
+    var tx = S.markBillPaid(id);
     if (!tx) return;
     haptic(16);
     celebrate();

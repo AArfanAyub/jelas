@@ -78,6 +78,9 @@
         name_ph: 'e.g. Phone plan, Streaming, Rent',
         amount: 'Amount',
         due_day: 'Due day of month',
+        due_weekday: 'Due day',
+        due_month: 'Due month',
+        account: 'Pay from account',
         frequency: 'Repeats',
         freq_monthly: 'Monthly',
         freq_weekly: 'Weekly',
@@ -86,7 +89,12 @@
         due_today: 'Due today',
         due_tomorrow: 'Due tomorrow',
         due_in: 'Due in {n} days',
+        due_fmt_weekly: 'Every {day}',
+        due_fmt_yearly: '{day} {month}',
         paid_this_month: 'Paid this month',
+        paid_this_week: 'Paid this week',
+        paid_this_year: 'Paid this year',
+        all_paid: 'All paid up',
         mark_paid: 'Mark as paid',
         paid_toast: 'Bill paid and logged',
         monthly_total: 'Monthly commitment',
@@ -95,6 +103,12 @@
         no_bills: 'No bills yet. Add your subscriptions and never miss a due date.',
         need_name: 'Give the bill a name.',
         need_amount: 'Enter an amount.',
+        need_account: 'Add an account first to pay this bill.',
+        other_account: 'Paid from {name} (outside the account you are viewing)',
+        weekday_0: 'Monday', weekday_1: 'Tuesday', weekday_2: 'Wednesday', weekday_3: 'Thursday',
+        weekday_4: 'Friday', weekday_5: 'Saturday', weekday_6: 'Sunday',
+        month_1: 'Jan', month_2: 'Feb', month_3: 'Mar', month_4: 'Apr', month_5: 'May', month_6: 'Jun',
+        month_7: 'Jul', month_8: 'Aug', month_9: 'Sep', month_10: 'Oct', month_11: 'Nov', month_12: 'Dec',
         delete_warn: 'Delete this bill? Past transactions stay.'
       },
 
@@ -122,8 +136,8 @@
       },
 
       nw: {
-        title: 'Net worth trend',
-        not_enough: 'Keep using JELAS and your net-worth history builds up here.'
+        title: 'Total balance trend',
+        not_enough: 'Keep using JELAS and your balance history builds up here.'
       },
 
       cal: {
@@ -171,6 +185,7 @@
 
       today: {
         greeting: 'Hello',
+        total_balance: 'Total balance',
         safe: 'Safe to spend today',
         safe_hint: 'Based on what is left this month',
         spent_today: 'Spent today',
@@ -187,6 +202,15 @@
         days_left: 'days left',
         overspent: 'Over budget this month',
         on_track: 'You are on track this month'
+      },
+
+      scope: {
+        all: 'All accounts',
+        one: 'Showing {name} only',
+        info: {
+          title: 'What am I looking at?',
+          body: '“All accounts” adds up every active account. Tap one account to focus Today, Flow and Reports on just that account — the Add screen follows the same choice.'
+        }
       },
 
       flow: {
@@ -226,7 +250,7 @@
         budget_adherence: 'Budget used',
         flow_title: 'Where your money moved',
         flow_sources: 'Sources', flow_accounts: 'Accounts', flow_uses: 'Used for',
-        net_worth: 'Net worth',
+        net_worth: 'Total balance',
         insights: 'Insights',
         export_img: 'Save report as image',
         subscriptions: 'Subscriptions this month',
@@ -252,7 +276,7 @@
         data: 'Data & backup', reminders: 'Reminders', settings: 'Settings',
         language: 'Language', theme: 'Theme', about: 'About JELAS',
         privacy_blur: 'Privacy blur',
-        net_worth: 'Net worth', assets: 'Assets', liabilities: 'Liabilities',
+        net_worth: 'Total balance', assets: 'Assets', liabilities: 'Liabilities',
         tab_manage: 'Manage', tab_tools: 'Tools', tab_app: 'App'
       },
 
@@ -547,6 +571,9 @@
         name_ph: 'cth. Pelan telefon, Penstriman, Sewa',
         amount: 'Jumlah',
         due_day: 'Hari akhir bulan',
+        due_weekday: 'Hari',
+        due_month: 'Bulan akhir',
+        account: 'Bayar daripada akaun',
         frequency: 'Berulang',
         freq_monthly: 'Bulanan',
         freq_weekly: 'Mingguan',
@@ -555,7 +582,12 @@
         due_today: 'Perlu bayar hari ini',
         due_tomorrow: 'Perlu bayar esok',
         due_in: '{n} hari lagi',
+        due_fmt_weekly: 'Setiap {day}',
+        due_fmt_yearly: '{day} {month}',
         paid_this_month: 'Sudah dibayar bulan ini',
+        paid_this_week: 'Sudah dibayar minggu ini',
+        paid_this_year: 'Sudah dibayar tahun ini',
+        all_paid: 'Semua sudah dibayar',
         mark_paid: 'Tanda sudah bayar',
         paid_toast: 'Bil dibayar dan dicatat',
         monthly_total: 'Komitmen bulanan',
@@ -564,6 +596,12 @@
         no_bills: 'Belum ada bil. Tambah langganan anda dan jangan terlepas tarikh akhir.',
         need_name: 'Beri nama pada bil ini.',
         need_amount: 'Masukkan jumlah.',
+        need_account: 'Tambah akaun dahulu untuk bayar bil ini.',
+        other_account: 'Dibayar daripada {name} (di luar akaun yang anda lihat)',
+        weekday_0: 'Isnin', weekday_1: 'Selasa', weekday_2: 'Rabu', weekday_3: 'Khamis',
+        weekday_4: 'Jumaat', weekday_5: 'Sabtu', weekday_6: 'Ahad',
+        month_1: 'Jan', month_2: 'Feb', month_3: 'Mac', month_4: 'Apr', month_5: 'Mei', month_6: 'Jun',
+        month_7: 'Jul', month_8: 'Ogo', month_9: 'Sep', month_10: 'Okt', month_11: 'Nov', month_12: 'Dis',
         delete_warn: 'Padam bil ini? Transaksi lepas kekal.'
       },
 
@@ -591,8 +629,8 @@
       },
 
       nw: {
-        title: 'Trend nilai bersih',
-        not_enough: 'Teruskan guna JELAS dan sejarah nilai bersih anda akan terbina di sini.'
+        title: 'Trend jumlah baki',
+        not_enough: 'Teruskan guna JELAS dan sejarah baki anda akan terbina di sini.'
       },
 
       cal: {
@@ -640,6 +678,7 @@
 
       today: {
         greeting: 'Hai',
+        total_balance: 'Jumlah baki',
         safe: 'Selamat dibelanjakan hari ini',
         safe_hint: 'Berdasarkan baki bulan ini',
         spent_today: 'Dibelanja hari ini',
@@ -656,6 +695,15 @@
         days_left: 'hari lagi',
         overspent: 'Melebihi bajet bulan ini',
         on_track: 'Bajet anda terkawal bulan ini'
+      },
+
+      scope: {
+        all: 'Semua akaun',
+        one: 'Menunjukkan {name} sahaja',
+        info: {
+          title: 'Apa yang saya lihat?',
+          body: '“Semua akaun” menjumlahkan setiap akaun aktif. Ketuk satu akaun untuk fokuskan Hari Ini, Aliran dan Laporan pada akaun itu sahaja — skrin Tambah mengikut pilihan yang sama.'
+        }
       },
 
       flow: {
@@ -695,7 +743,7 @@
         budget_adherence: 'Bajet digunakan',
         flow_title: 'Ke mana wang anda pergi',
         flow_sources: 'Sumber', flow_accounts: 'Akaun', flow_uses: 'Digunakan untuk',
-        net_worth: 'Nilai bersih',
+        net_worth: 'Jumlah baki',
         insights: 'Pandangan',
         export_img: 'Simpan laporan sebagai imej',
         subscriptions: 'Langganan bulan ini',
@@ -721,7 +769,7 @@
         data: 'Data & sandaran', reminders: 'Peringatan', settings: 'Tetapan',
         language: 'Bahasa', theme: 'Tema', about: 'Perihal JELAS',
         privacy_blur: 'Kabur privasi',
-        net_worth: 'Nilai bersih', assets: 'Aset', liabilities: 'Liabiliti',
+        net_worth: 'Jumlah baki', assets: 'Aset', liabilities: 'Liabiliti',
         tab_manage: 'Urus', tab_tools: 'Alat', tab_app: 'Apl'
       },
 
@@ -1016,6 +1064,9 @@
         name_ph: '例如：话费套餐、流媒体、房租',
         amount: '金额',
         due_day: '每月缴费日',
+        due_weekday: '缴费日',
+        due_month: '到期月份',
+        account: '支付账户',
         frequency: '重复周期',
         freq_monthly: '每月',
         freq_weekly: '每周',
@@ -1024,7 +1075,12 @@
         due_today: '今天到期',
         due_tomorrow: '明天到期',
         due_in: '{n} 天后到期',
+        due_fmt_weekly: '每{day}',
+        due_fmt_yearly: '{month}{day}日',
         paid_this_month: '本月已缴',
+        paid_this_week: '本周已缴',
+        paid_this_year: '今年已缴',
+        all_paid: '全部已缴',
         mark_paid: '标记为已缴',
         paid_toast: '账单已缴并记录',
         monthly_total: '每月固定支出',
@@ -1033,6 +1089,12 @@
         no_bills: '还没有账单。添加订阅，再也不会错过缴费日。',
         need_name: '请填写账单名称。',
         need_amount: '请输入金额。',
+        need_account: '请先添加账户再支付该账单。',
+        other_account: '从{name}支付（不在当前查看的账户中）',
+        weekday_0: '周一', weekday_1: '周二', weekday_2: '周三', weekday_3: '周四',
+        weekday_4: '周五', weekday_5: '周六', weekday_6: '周日',
+        month_1: '1月', month_2: '2月', month_3: '3月', month_4: '4月', month_5: '5月', month_6: '6月',
+        month_7: '7月', month_8: '8月', month_9: '9月', month_10: '10月', month_11: '11月', month_12: '12月',
         delete_warn: '删除该账单？历史交易会保留。'
       },
 
@@ -1060,8 +1122,8 @@
       },
 
       nw: {
-        title: '净资产趋势',
-        not_enough: '继续使用 JELAS，你的净资产历史会在这里累积。'
+        title: '总余额趋势',
+        not_enough: '继续使用 JELAS，你的余额历史会在这里累积。'
       },
 
       cal: {
@@ -1109,6 +1171,7 @@
 
       today: {
         greeting: '你好',
+        total_balance: '总余额',
         safe: '今日可安全消费',
         safe_hint: '根据本月剩余预算',
         spent_today: '今日已花费',
@@ -1125,6 +1188,15 @@
         days_left: '天剩余',
         overspent: '本月已超预算',
         on_track: '本月预算正常'
+      },
+
+      scope: {
+        all: '全部账户',
+        one: '仅显示{name}',
+        info: {
+          title: '我在看什么？',
+          body: '“全部账户”汇总所有活跃账户。点击一个账户，即可将“今日”、“流水”和“报表”聚焦到该账户——记账页面也会跟随此选择。'
+        }
       },
 
       flow: {
@@ -1164,7 +1236,7 @@
         budget_adherence: '预算使用',
         flow_title: '你的钱流向何处',
         flow_sources: '来源', flow_accounts: '账户', flow_uses: '用途',
-        net_worth: '净资产',
+        net_worth: '总余额',
         insights: '洞察',
         export_img: '保存报告为图片',
         subscriptions: '本月订阅',
@@ -1190,7 +1262,7 @@
         data: '数据与备份', reminders: '提醒', settings: '设置',
         language: '语言', theme: '主题', about: '关于 JELAS',
         privacy_blur: '隐私模糊',
-        net_worth: '净资产', assets: '资产', liabilities: '负债',
+        net_worth: '总余额', assets: '资产', liabilities: '负债',
         tab_manage: '管理', tab_tools: '工具', tab_app: '应用'
       },
 

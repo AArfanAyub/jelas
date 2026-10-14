@@ -66,7 +66,8 @@
         autoLock: 15,
         bio: false,
         receiptScan: false,
-        monthlyLimit: 0        // 0 = not set
+        monthlyLimit: 0,       // 0 = not set
+        accountScope: 'all'    // 'all' or an account id — which account sections focus on
       },
       accounts: opts.accounts || [],
       categories: JSON.parse(JSON.stringify(window.JELAS_SEED.CATEGORY_SEED)),
@@ -116,6 +117,13 @@
     if (!state.checklists) state.checklists = defaultState().checklists;
     if (!state.wishlist) state.wishlist = [];
     if (!state.bills) state.bills = [];
+    state.bills.forEach(function (b) {
+      if (!b.frequency) b.frequency = 'monthly';
+      if (b.dueMonth == null) b.dueMonth = 1;
+      if (b.lastPaidKey === undefined) b.lastPaidKey = legacyPaidKey(b.frequency, null, b.lastPaidYM || null);
+      if (b.frequency === 'weekly') b.dueDay = Math.max(0, Math.min(6, Math.floor(num(b.dueDay)) || 0));
+      else b.dueDay = Math.max(1, Math.min(31, Math.floor(num(b.dueDay)) || 1));
+    });
     if (!state.netWorthHistory) state.netWorthHistory = [];
     if (!state.moods) state.moods = {};
     if (!state.badges) state.badges = [];
@@ -191,9 +199,10 @@
     var t = accountType(id);
     return t === 'credit' || t === 'loan';
   }
-  function totalAssets() {
+  function totalAssets(accountId) {
     var s = 0;
     state.accounts.filter(function (a) { return !a.archived; }).forEach(function (a) {
+      if (accountId && a.id !== accountId) return;
       var bal = accountBalance(a.id);
       // A liability account (card / loan) with a POSITIVE balance means you are
       // in credit — that is an asset, not a debt.
@@ -202,17 +211,18 @@
     });
     return round2(s);
   }
-  function totalLiabilities() {
+  function totalLiabilities(accountId) {
     var s = 0;
     state.accounts.filter(function (a) { return !a.archived && isLiability(a.id); })
       .forEach(function (a) {
+        if (accountId && a.id !== accountId) return;
         var bal = accountBalance(a.id);
         if (bal < 0) s += -bal;   // only what is actually owed
       });
     state.debts.forEach(function (d) { s += num(d.balance); });
     return round2(s);
   }
-  function netWorth() { return round2(totalAssets() - totalLiabilities()); }
+  function netWorth(accountId) { return round2(totalAssets(accountId) - totalLiabilities(accountId)); }
 
   /* ---------------- categories ---------------- */
   function addCategory(c) {
@@ -309,20 +319,22 @@
         return (b.createdAt || 0) - (a.createdAt || 0);
       });
   }
-  function stats(from, to) {
+  function stats(from, to, accountId) {
     var tin = 0, tout = 0;
     state.transactions.forEach(function (t) {
       if (!inRange(t, from, to)) return;
+      if (accountId && t.accountId !== accountId) return;
       if (t.type === 'income') tin += num(t.amount);
       else if (t.type === 'expense') tout += num(t.amount);
     });
     return { in: round2(tin), out: round2(tout), net: round2(tin - tout) };
   }
-  function categoryTotals(from, to) {
+  function categoryTotals(from, to, accountId) {
     var map = {};
     state.transactions.forEach(function (t) {
       if (t.type !== 'expense') return;
       if (!inRange(t, from, to)) return;
+      if (accountId && t.accountId !== accountId) return;
       var k = t.categoryId || 'uncat';
       map[k] = round2((map[k] || 0) + num(t.amount));
     });
@@ -339,18 +351,18 @@
     arr.sort(function (a, b) { return b.total - a.total; });
     return arr;
   }
-  function monthStats(date) {
+  function monthStats(date, accountId) {
     var d = date ? new Date(date) : new Date();
-    return stats(startOfMonth(d), endOfMonth(d));
+    return stats(startOfMonth(d), endOfMonth(d), accountId);
   }
-  function weekStats(date) {
+  function weekStats(date, accountId) {
     var d = date ? new Date(date) : new Date();
     var s = startOfWeek(d);
-    return stats(s, addDays(s, 6));
+    return stats(s, addDays(s, 6), accountId);
   }
-  function dayStats(date) {
+  function dayStats(date, accountId) {
     var d = date ? new Date(date) : new Date();
-    return stats(startOfDay(d), startOfDay(d));
+    return stats(startOfDay(d), startOfDay(d), accountId);
   }
 
   /* ---------------- budgets & safe to spend ---------------- */
@@ -774,6 +786,14 @@
   /* A backup file is untrusted input. Everything is whitelisted, type-coerced,
      length-capped and re-keyed so a crafted .jelas file cannot inject markup,
      pollute prototypes, or corrupt the store. */
+  /* Migrate old paid-marks (lastPaidYM = year-month) to per-frequency keys. */
+  function legacyPaidKey(freq, stored, lpYM) {
+    if (typeof stored === 'string' && stored) return stored.slice(0, 16);
+    if (!lpYM) return null;
+    if (freq === 'yearly') return lpYM.slice(0, 4);   // paid for that year
+    return lpYM;                                      // monthly + weekly: that month
+  }
+
   function sanitizeState(raw) {
     var out = defaultState();
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
@@ -784,9 +804,10 @@
 
     var s = (raw.settings && typeof raw.settings === 'object') ? raw.settings : {};
     ['currency', 'method', 'theme', 'locale', 'reduceMotion', 'haptics',
-      'privacyBlur', 'screenshotBlock', 'autoLock', 'bio', 'receiptScan'].forEach(function (k) {
+      'privacyBlur', 'screenshotBlock', 'autoLock', 'bio', 'receiptScan', 'accountScope'].forEach(function (k) {
       if (s[k] !== undefined) out.settings[k] = s[k];
     });
+    if (typeof out.settings.accountScope !== 'string' || !out.settings.accountScope) out.settings.accountScope = 'all';
     out.settings.currency = 'MYR';
     out.settings.autoLock = Math.max(0, Math.min(3600, numOr(out.settings.autoLock, 15)));
     out.settings.monthlyLimit = Math.max(0, round2(numOr(s.monthlyLimit)));
@@ -935,15 +956,21 @@
     out.bills = arr(raw.bills).slice(0, 200).map(function (b) {
       var acc = (b && b.accountId) ? safeId(b.accountId) : '';
       var cat2 = (b && b.categoryId) ? safeId(b.categoryId) : '';
+      var freq = ['monthly', 'weekly', 'yearly'].indexOf(b && b.frequency) === -1 ? 'monthly' : b.frequency;
+      var lpYM = /^\d{4}-\d{2}$/.test(String(b && b.lastPaidYM)) ? b.lastPaidYM : null;
       return {
         id: safeId(b && b.id, 'bl'),
         name: str(b && b.name, 60) || 'Bill',
         amount: round2(numOr(b && b.amount)),
         categoryId: catIds[cat2] ? cat2 : null,
         accountId: acctIds[acc] ? acc : null,
-        dueDay: Math.max(1, Math.min(31, numOr(b && b.dueDay, 1))),
-        frequency: ['monthly', 'weekly', 'yearly'].indexOf(b && b.frequency) === -1 ? 'monthly' : b.frequency,
-        lastPaidYM: /^\d{4}-\d{2}$/.test(String(b && b.lastPaidYM)) ? b.lastPaidYM : null,
+        dueDay: freq === 'weekly'
+          ? Math.max(0, Math.min(6, Math.floor(numOr(b && b.dueDay, 1))))
+          : Math.max(1, Math.min(31, numOr(b && b.dueDay, 1))),
+        dueMonth: Math.max(1, Math.min(12, Math.floor(numOr(b && b.dueMonth, 1)))),
+        frequency: freq,
+        lastPaidYM: lpYM,
+        lastPaidKey: legacyPaidKey(freq, b && b.lastPaidKey, lpYM),
         active: !(b && b.active === false),
         icon: str(b && b.icon, 30) || 'repeat',
         createdAt: numOr(b && b.createdAt, Date.now())
@@ -991,16 +1018,25 @@
     return round2(a);
   }
 
+  function dueDayFor(freq, v) {
+    return freq === 'weekly'
+      ? Math.max(0, Math.min(6, Math.floor(num(v))))
+      : Math.max(1, Math.min(31, Math.floor(num(v)) || 1));
+  }
+
   function addBill(b) {
+    var freq = ['monthly', 'weekly', 'yearly'].indexOf(b.frequency) === -1 ? 'monthly' : b.frequency;
     var bill = {
       id: safeId(b.id, 'bl'),
       name: String(b.name || 'Bill').slice(0, 60),
       amount: round2(num(b.amount)),
       categoryId: b.categoryId || null,
       accountId: b.accountId || null,
-      dueDay: Math.max(1, Math.min(31, num(b.dueDay) || 1)),
-      frequency: ['monthly', 'weekly', 'yearly'].indexOf(b.frequency) === -1 ? 'monthly' : b.frequency,
+      dueDay: dueDayFor(freq, b.dueDay),
+      dueMonth: Math.max(1, Math.min(12, Math.floor(num(b.dueMonth)) || (new Date().getMonth() + 1))),
+      frequency: freq,
       lastPaidYM: null,
+      lastPaidKey: null,
       active: true,
       icon: b.icon || 'repeat',
       createdAt: Date.now()
@@ -1013,8 +1049,14 @@
   function updateBill(id, patch) {
     var b = state.bills.find(function (x) { return x.id === id; });
     if (!b) return null;
+    var freq = patch.frequency
+      ? (['monthly', 'weekly', 'yearly'].indexOf(patch.frequency) === -1 ? 'monthly' : patch.frequency)
+      : (b.frequency || 'monthly');
     Object.keys(patch).forEach(function (k) { b[k] = patch[k]; });
-    if (b.dueDay) b.dueDay = Math.max(1, Math.min(31, num(b.dueDay)));
+    b.frequency = freq;
+    b.dueDay = dueDayFor(freq, b.dueDay);
+    if (b.dueMonth != null) b.dueMonth = Math.max(1, Math.min(12, Math.floor(num(b.dueMonth)) || 1));
+    else b.dueMonth = Math.max(1, Math.min(12, Math.floor(num(b.dueMonth)) || (new Date().getMonth() + 1)));
     save();
     return b;
   }
@@ -1028,10 +1070,33 @@
     return state.bills.filter(function (b) { return b.active !== false; });
   }
 
-  /* The next time this bill falls due, from a given date. */
+  /* The next time this bill falls due, from a given date (today itself counts).
+     weekly:  dueDay is a weekday, 0 = Sunday … 6 = Saturday.
+     yearly:  dueMonth (1–12) + dueDay (1–31).
+     monthly: dueDay is the day of month (1–31). */
   function nextDueDate(bill, from) {
     var d = from ? new Date(from) : new Date();
-    var day = Math.max(1, Math.min(31, num(bill.dueDay) || 1));
+    d = startOfDay(d);
+    var freq = bill.frequency;
+    if (freq === 'weekly') {
+      // Monday-first, matching startOfWeek(): 0 = Monday … 6 = Sunday.
+      var wd = Math.max(0, Math.min(6, Math.floor(num(bill.dueDay)) || 0));
+      var dow = (d.getDay() + 6) % 7;
+      var step = (wd - dow + 7) % 7;
+      return addDays(d, step);
+    }
+    if (freq === 'yearly') {
+      var mth = Math.max(1, Math.min(12, Math.floor(num(bill.dueMonth)) || 1));
+      var yday = Math.max(1, Math.min(31, Math.floor(num(bill.dueDay)) || 1));
+      var ycand = new Date(d.getFullYear(), mth - 1, 1);
+      ycand.setDate(Math.min(yday, new Date(ycand.getFullYear(), ycand.getMonth() + 1, 0).getDate()));
+      if (ycand.getTime() < d.getTime()) {
+        ycand = new Date(d.getFullYear() + 1, mth - 1, 1);
+        ycand.setDate(Math.min(yday, new Date(ycand.getFullYear(), ycand.getMonth() + 1, 0).getDate()));
+      }
+      return ycand;
+    }
+    var day = Math.max(1, Math.min(31, Math.floor(num(bill.dueDay)) || 1));
     var y = d.getFullYear(), m = d.getMonth();
     function make(yy, mm) {
       var dim = new Date(yy, mm + 1, 0).getDate();
@@ -1061,14 +1126,33 @@
       .sort(function (a, b) { return a.due - b.due; });
   }
 
-  /* Money to set aside for bills still unpaid before a date (used by safe-to-spend). */
+  /* Every due occurrence of a bill between from and to (inclusive). */
+  function billOccurrences(bill, from, to, max) {
+    max = max || 60;
+    var out = [];
+    var cur = nextDueDate(bill, from);
+    var guard = 0;
+    while (cur <= to && guard < max) {
+      out.push(cur);
+      var after = new Date(cur.getTime() + 86400000);
+      var nn = nextDueDate(bill, after);
+      if (!(nn > cur)) break;
+      cur = nn;
+      guard++;
+    }
+    return out;
+  }
+
+  /* Money to set aside for bills still unpaid before a date (used by safe-to-spend).
+     Weekly bills can fall due several times inside the window — every unpaid
+     occurrence counts. */
   function billsReserveUntil(endDate, from) {
     var now = from ? new Date(from) : new Date();
-    var ym = ymd(now).slice(0, 7);
     var total = 0;
     activeBills().forEach(function (b) {
-      if (b.lastPaidYM === ym) return;            // already paid this month
-      if (nextDueDate(b, now) <= endDate) total += num(b.amount);
+      billOccurrences(b, now, endDate, 60).forEach(function (d) {
+        if (!isBillPaid(b, d)) total += num(b.amount);
+      });
     });
     return round2(total);
   }
@@ -1079,7 +1163,7 @@
     return round2(s);
   }
 
-  /* Pay a bill: log the expense and remember it was paid this month. */
+  /* Pay a bill: log the expense and remember it was paid this period. */
   function markBillPaid(id, accountIdOverride) {
     var b = state.bills.find(function (x) { return x.id === id; });
     if (!b) return null;
@@ -1094,14 +1178,32 @@
       note: b.name,
       tags: ['bill']
     });
-    b.lastPaidYM = ymd(new Date()).slice(0, 7);
+    b.lastPaidKey = paidKey(b, new Date());
+    b.lastPaidYM = ymd(new Date()).slice(0, 7);   // kept for older readers/exports
     save();
     return tx;
   }
 
+  /* Period key for paid state — per frequency.
+     weekly: the Monday of that week; yearly: the year; monthly: year-month. */
+  function paidKey(bill, date) {
+    var d = date ? new Date(date) : new Date();
+    var freq = bill.frequency || 'monthly';
+    if (freq === 'weekly') return ymd(startOfWeek(d));
+    if (freq === 'yearly') return String(d.getFullYear());
+    return ymd(d).slice(0, 7);
+  }
+
   function isBillPaid(b, date) {
-    var ym = ymd(date ? new Date(date) : new Date()).slice(0, 7);
-    return b.lastPaidYM === ym;
+    if (!b) return false;
+    var key = paidKey(b, date);
+    if (b.lastPaidKey) return b.lastPaidKey === key;
+    /* legacy bills only recorded a year-month */
+    if (b.lastPaidYM) {
+      var ym = ymd(date ? new Date(date) : new Date()).slice(0, 7);
+      return b.lastPaidYM === ym;
+    }
+    return false;
   }
 
   /* ---------------- auto-categorisation ---------------- */
@@ -1478,6 +1580,7 @@
     activeBills: activeBills, nextDueDate: nextDueDate, billsDueWithin: billsDueWithin,
     billsReserveUntil: billsReserveUntil, monthlyBillsTotal: monthlyBillsTotal,
     monthlyEquivalent: monthlyEquivalent, markBillPaid: markBillPaid, isBillPaid: isBillPaid,
+    paidKey: paidKey,
     suggestCategory: suggestCategory, frequentTemplates: frequentTemplates,
     snapshotNetWorth: snapshotNetWorth, netWorthSeries: netWorthSeries,
     ask: ask

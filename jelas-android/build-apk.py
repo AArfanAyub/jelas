@@ -28,8 +28,8 @@ KEYTOOL = os.path.join(JDK_HOME, "bin", "keytool.exe")
 JAVA = os.path.join(JDK_HOME, "bin", "java.exe")
 JAVAC = os.path.join(JDK_HOME, "bin", "javac.exe")
 
-VERSION_CODE = "1"
-VERSION_NAME = "1.0.0"
+VERSION_CODE = "2"
+VERSION_NAME = "1.0.1"
 APK_NAME = "jelas.apk"
 KEY_ALIAS = "jelas"
 
