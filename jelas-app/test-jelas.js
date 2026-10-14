@@ -801,6 +801,32 @@ async function journey(page, run) {
     if (Math.abs(r.weeklyEq - 43.33) > 0.01) throw new Error('weekly equivalent wrong: ' + r.weeklyEq);
   });
 
+  await check(run, 'weekly bill due date is correct', async () => {
+    const r = await page.evaluate(() => {
+      const S = window.JELAS_STORE;
+      var now = new Date();
+      var wd = (now.getDay() + 6) % 7; // 0=Mon
+      var targetWd = (wd + 2) % 7; // two days from now
+      var b = S.addBill({ name: 'Weekly', amount: 10, dueDay: targetWd, frequency: 'weekly' });
+      var due = S.nextDueDate(b, now);
+      var diff = Math.round((due - S.startOfDay(now)) / 86400000);
+      return { diff: diff };
+    });
+    if (r.diff !== 2) throw new Error('weekly due diff wrong: ' + r.diff);
+  });
+
+  await check(run, 'yearly bill due date respects month', async () => {
+    const r = await page.evaluate(() => {
+      const S = window.JELAS_STORE;
+      var now = new Date();
+      var b = S.addBill({ name: 'Yearly', amount: 100, dueDay: 15, dueMonth: 3, frequency: 'yearly' });
+      var due = S.nextDueDate(b, now);
+      return { m: due.getMonth() + 1, d: due.getDate() };
+    });
+    if (r.m !== 3) throw new Error('yearly due month wrong: ' + r.m);
+    if (r.d !== 15) throw new Error('yearly due day wrong: ' + r.d);
+  });
+
   await check(run, 'unpaid bill is reserved in safe-to-spend', async () => {
     const r = await page.evaluate(() => {
       const S = window.JELAS_STORE;
@@ -1200,6 +1226,29 @@ async function journey(page, run) {
     const after = await page.evaluate(() => window.JELAS_APP.state().transactions.length);
     if (after !== before) throw new Error('data lost across PIN change: ' + before + ' -> ' + after);
   }, 120000);
+
+  /* 20. scope switching + merged total balance */
+  await check(run, 'scope switching shows merged balance', async () => {
+    await tap(page, '[data-act="set-tab"][data-tab="today"]');
+    const totalAll = await page.evaluate(() => {
+      var S = window.JELAS_STORE;
+      var accts = S.get().accounts.filter(function (a) { return !a.archived; });
+      return accts.reduce(function (s, a) { return s + S.accountBalance(a.id); }, 0);
+    });
+    const heroText = await txt(page, '#todayTab');
+    if (!/RM/.test(heroText)) throw new Error('hero missing money');
+    if (!heroText.includes('Total balance') && !heroText.includes('Jumlah baki') && !heroText.includes('总余额')) throw new Error('hero missing total balance label');
+  });
+
+  await check(run, 'scope switches to second account', async () => {
+    await tap(page, '[data-act="set-tab"][data-tab="today"]');
+    const rows = await page.$$('[data-act="scope"]');
+    if (rows.length < 2) throw new Error('not enough scope chips: ' + rows.length);
+    await tap(page, '[data-act="scope"][data-a]:not([data-a="all"])');
+    await wait(400);
+    const scope = await page.evaluate(() => window.JELAS_APP.state().settings.accountScope);
+    if (scope === 'all') throw new Error('scope did not change');
+  });
 }
 
 /* ---------- runner ---------- */
