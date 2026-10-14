@@ -5,10 +5,9 @@
 keystore.pass
 *.pem
 
-# Build output / intermediates
+# Build intermediates (dist/ is tracked — it ships the prebuilt signed APK)
 build/
 gen/
-dist/
 
 # Local tooling
 *.log

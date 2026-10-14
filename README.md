@@ -5,7 +5,7 @@ A simple, privacy-first money tracker for students. No ads, no accounts, no clou
 | | |
 |---|---|
 | **Web app** | [`jelas-app/`](jelas-app/) — Pure HTML/CSS/JS. Install as PWA or run in any browser. |
-| **Android APK** | [`jelas-android/`](jelas-android/) — Lightweight WebView wrapper that builds a signed APK. |
+| **Android APK** | [`jelas-android/dist/jelas.apk`](jelas-android/dist/jelas.apk) — Prebuilt signed APK included, or build your own via `jelas-android/build-apk.py`. |
 | **License** | MIT |
 
 ## Quick start

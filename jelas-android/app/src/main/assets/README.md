@@ -84,13 +84,7 @@ unknown sources once.
 
 ## Run in a browser
 
-It's a plain static site — no build step:
-
-```bash
-cd jelas-app
-python -m http.server 8080
-# open http://localhost:8080
-```
+It's a plain static site — no build step. Just open `index.html` in any modern browser.
 
 ---
 

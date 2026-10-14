@@ -3,9 +3,10 @@
  * Usage:  node test-jelas.js [runs]
  */
 const puppeteer = require('puppeteer-core');
+const path = require('path');
 const fs = require('fs');
 
-const APP = 'file:///C:/Users/user/WorkBuddy%20AI/app%20solat/jelas-app/index.html';
+const APP = 'file:///' + path.join(__dirname, 'index.html').replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/');
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const RUNS = Number(process.argv[2] || 20);
 
